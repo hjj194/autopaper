@@ -8,7 +8,7 @@ The agent edits the draft, the reviewer scores it, and the loop repeats around a
 
 ## Why AutoPaper
 
-- Single editable target. The agent only changes `paper.tex`.
+- Focused write scope. The agent optimizes `paper.tex` and may keep short operational notes in `.autopaper/working_memory.md`.
 - Fixed evaluation harness. `reviewer.py` stays constant across runs.
 - Multi-reviewer scoring. Multiple LLMs score the same draft independently.
 - Simple optimization loop. Improve, review, keep or discard, repeat.
@@ -20,6 +20,8 @@ AutoPaper is built around three files:
 - `paper.tex`: the paper draft the agent edits
 - `reviewer.py`: the review harness that scores the draft
 - `program.md`: the operating instructions for the agent loop
+
+During a run, the agent may also maintain `.autopaper/working_memory.md` as a short scratchpad for current hypotheses, failed ideas, and open questions.
 
 The reviewer scores four dimensions:
 
@@ -97,10 +99,19 @@ The optimization loop stops when one of the following happens:
 
 These rules are defined in `program.md`.
 
+## Agent Rules
+
+- Use git and `results.tsv` for round-by-round history, and `.autopaper/working_memory.md` for short-lived working memory.
+- When goals, facts, missing experiment details, or missing citations are ambiguous, ask the human instead of guessing.
+- Work from first principles: strengthen the problem statement, contribution logic, evidence chain, and weakest claim before polishing style.
+- Treat bibliography facts conservatively. Reuse verified references already in the repo, but do not invent new citations or bibliography entries.
+
 ## Repository Layout
 
 ```text
 autopaper/
+├── .autopaper/
+│   └── working_memory.md
 ├── paper.tex
 ├── reviewer.py
 ├── program.md

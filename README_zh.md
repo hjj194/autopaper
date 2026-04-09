@@ -8,7 +8,7 @@ AutoPaper 是一个极简框架，用固定的多模型审稿器驱动 AI 代理
 
 ## 为什么是 AutoPaper
 
-- 单一编辑目标。代理只改 `paper.tex`。
+- 聚焦写入范围。agent 主要优化 `paper.tex`，并可在 `.autopaper/working_memory.md` 中维护简短运行记忆。
 - 固定评审基线。`reviewer.py` 在实验过程中保持不变。
 - 多模型独立打分。多个 LLM 对同一稿件分别评审。
 - 简单的优化闭环。修改、评审、保留或回退，然后继续。
@@ -20,6 +20,8 @@ AutoPaper 主要围绕三个文件运转：
 - `paper.tex`：代理编辑的论文草稿
 - `reviewer.py`：负责打分的评审 harness
 - `program.md`：代理实验循环的操作说明
+
+运行过程中，agent 还可以维护 `.autopaper/working_memory.md`，用于记录当前假设、失败尝试和待确认问题。
 
 评审器从四个维度打分：
 
@@ -96,10 +98,19 @@ REVIEWERS = [
 
 这些规则定义在 `program.md` 中。
 
+## Agent 规则
+
+- 用 git 和 `results.tsv` 保存每轮历史，用 `.autopaper/working_memory.md` 维护简短运行记忆。
+- 当目标、事实、实验细节或引用信息存在歧义时，先向人工提问对齐，不要猜测。
+- 以第一性原理为主导，优先修正问题定义、贡献链路、证据支撑和最薄弱的论证，再做文风润色。
+- 参考文献采用保守策略。可以复用仓库中已验证的引用，但不要自行编造新的 citation 或 bibliography 条目。
+
 ## 仓库结构
 
 ```text
 autopaper/
+├── .autopaper/
+│   └── working_memory.md
 ├── paper.tex
 ├── reviewer.py
 ├── program.md
