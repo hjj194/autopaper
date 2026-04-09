@@ -1,5 +1,7 @@
 # AutoPaper
 
+中文 | [English](README.md)
+
 自主学术论文写作优化系统，灵感来自 [autoresearch](https://github.com/karpathy/autoresearch)。
 
 ## 这个仓库做什么

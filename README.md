@@ -1,5 +1,7 @@
 # AutoPaper
 
+[中文](README_zh.md) | English
+
 Autonomous academic paper writing optimization, inspired by [autoresearch](https://github.com/karpathy/autoresearch).
 
 ## What this repo does
