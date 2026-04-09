@@ -2,35 +2,15 @@
 
 中文 | [English](README.md)
 
-AutoPaper 是一个极简框架，用固定的多模型审稿器驱动 AI 代理迭代优化 LaTeX 论文。
+AutoPaper 是一个“优化论文”的闭环：外部 coding agent 负责改写 `paper.tex`，固定的多模型 reviewer 负责打分。
 
-代理负责修改草稿，评审器负责打分，整个循环围绕单一指标 `review_score` 展开。
-
-## 为什么是 AutoPaper
-
-- 聚焦写入范围。agent 主要优化 `paper.tex`，并可在 `.autopaper/working_memory.md` 中维护简短运行记忆。
-- 固定评审基线。`reviewer.py` 在实验过程中保持不变。
-- 多模型独立打分。多个 LLM 对同一稿件分别评审。
-- 简单的优化闭环。修改、评审、保留或回退，然后继续。
+它不是自带 agent runtime 的产品。你提供 Claude Code、Codex 或其他 coding agent；这个仓库提供 reviewer、运行流程和约束规则。
 
 ## 工作方式
 
-AutoPaper 主要围绕三个文件运转：
-
-- `paper.tex`：代理编辑的论文草稿
-- `reviewer.py`：负责打分的评审 harness
-- `program.md`：代理实验循环的操作说明
-
-运行过程中，agent 还可以维护 `.autopaper/working_memory.md`，用于记录当前假设、失败尝试和待确认问题。
-
-评审器从四个维度打分：
-
-- `soundness`
-- `clarity`
-- `novelty`
-- `significance`
-
-每个审稿模型返回 1 到 10 的整数分。AutoPaper 再对多位审稿人的结果取平均并计算加权 `review_score`，所以最终聚合输出可以是小数。
+1. 在当前仓库启动 agent，并让它先阅读 `program.md`。
+2. agent 先执行 `uv run reviewer.py --dry-run`，确认 reviewer 可用，然后开始修改 `paper.tex`。
+3. `reviewer.py` 对 LaTeX 源稿打分，agent 根据结果决定保留还是回退，然后继续下一轮。
 
 ## 快速开始
 
@@ -38,19 +18,24 @@ AutoPaper 主要围绕三个文件运转：
 # 1. 安装依赖
 uv sync
 
-# 2. 编辑 reviewer.py 顶部的 REVIEWERS 列表来配置审稿模型
+# 2. 编辑 reviewer.py 顶部的 REVIEWERS 列表
 
 # 3. 用你的论文替换 paper.tex
-# results/ 是可选目录，可用于放实验记录、人工总结或原始材料；没有这些内容时可以留空
+# results/ 是可选目录，可用于放笔记、人工总结或原始材料；没有这些内容时可以留空
 
 # 4. 在当前目录启动 Claude Code 或其他 coding agent
 # 示例提示词：
 # Read program.md and start optimizing the paper in paper.tex.
 ```
 
-agent 应先执行 `uv run reviewer.py --dry-run` 验证审稿模型连通性，再进入正式评分和优化循环。完整工作流是为 Claude Code、Codex 这类外部 agent 设计的。
+## Agent 会做什么
 
-`reviewer.py` 评审的是 `paper.tex` 里的 LaTeX 源文本，不是编译后的 PDF。
+- 在第一次正式评分前先运行 `uv run reviewer.py --dry-run`
+- 用 git 和 `results.tsv` 保存每轮历史
+- 用 `.autopaper/working_memory.md` 维护简短运行记忆
+- 遇到目标、事实、实验细节或引用信息不确定时，先问人，不猜
+- 以第一性原理为主，先修问题定义、贡献链路、证据和最薄弱论证，再修文风
+- 对参考文献采取保守策略：复用仓库中已验证条目，不自行编造 citation 或 bibliography 事实
 
 ## 审稿模型配置
 
@@ -76,7 +61,7 @@ REVIEWERS = [
 ]
 ```
 
-三个提供方都使用同一种兼容格式：`model`、`api_key`、`base_url`。如果要接入其他服务，保持相同结构并把 `base_url` 指向你的接口即可：
+每个 reviewer 都使用同一种兼容格式：`model`、`api_key`、`base_url`。如果接入其他服务，保持相同结构并把 `base_url` 指向对应接口即可。
 
 ```python
 {
@@ -86,24 +71,17 @@ REVIEWERS = [
 }
 ```
 
-每次运行至少需要 `MIN_QUORUM` 个审稿模型成功返回结果。
+每次正式评分至少需要 `MIN_QUORUM` 个 reviewer 成功返回结果。
 
 ## 停止条件
 
 满足以下任一条件时，优化循环会停止：
 
 - `review_score` 达到 `TARGET_SCORE`
-- 连续 `CONVERGENCE_ROUNDS` 轮的分数提升都低于设定阈值
+- 连续 `CONVERGENCE_ROUNDS` 轮的提升低于设定阈值
 - 你手动停止 agent
 
-这些规则定义在 `program.md` 中。
-
-## Agent 规则
-
-- 用 git 和 `results.tsv` 保存每轮历史，用 `.autopaper/working_memory.md` 维护简短运行记忆。
-- 当目标、事实、实验细节或引用信息存在歧义时，先向人工提问对齐，不要猜测。
-- 以第一性原理为主导，优先修正问题定义、贡献链路、证据支撑和最薄弱的论证，再做文风润色。
-- 参考文献采用保守策略。可以复用仓库中已验证的引用，但不要自行编造新的 citation 或 bibliography 条目。
+完整运行规则见 `program.md`。
 
 ## 仓库结构
 
@@ -122,8 +100,8 @@ autopaper/
 └── README_zh.md
 ```
 
-## 说明
+## 边界说明
 
-- `reviewer.py` 在正式评审前会先做连通性 preflight 检查。
-- 不要把 API key 或其他密钥直接提交到仓库里。
+- `reviewer.py` 评审的是 `paper.tex` 的 LaTeX 源文本，不是编译后的 PDF。
 - 更高的 `review_score` 有参考价值，但它仍然只是代理指标，不能替代真实同行评审。
+- 不要把 API key 或其他密钥直接提交到仓库里。

@@ -2,35 +2,15 @@
 
 [中文](README_zh.md) | English
 
-AutoPaper is a minimal framework for iteratively improving a LaTeX paper with an AI agent and a fixed multi-LLM reviewer.
+AutoPaper is a paper-optimization loop: an external coding agent rewrites `paper.tex`, and a fixed multi-LLM reviewer scores the draft.
 
-The agent edits the draft, the reviewer scores it, and the loop repeats around a single metric: `review_score`.
-
-## Why AutoPaper
-
-- Focused write scope. The agent optimizes `paper.tex` and may keep short operational notes in `.autopaper/working_memory.md`.
-- Fixed evaluation harness. `reviewer.py` stays constant across runs.
-- Multi-reviewer scoring. Multiple LLMs score the same draft independently.
-- Simple optimization loop. Improve, review, keep or discard, repeat.
+It is not a standalone agent runtime. You bring Claude Code, Codex, or another coding agent; this repo provides the reviewer, workflow, and guardrails.
 
 ## How It Works
 
-AutoPaper is built around three files:
-
-- `paper.tex`: the paper draft the agent edits
-- `reviewer.py`: the review harness that scores the draft
-- `program.md`: the operating instructions for the agent loop
-
-During a run, the agent may also maintain `.autopaper/working_memory.md` as a short scratchpad for current hypotheses, failed ideas, and open questions.
-
-The reviewer scores four dimensions:
-
-- `soundness`
-- `clarity`
-- `novelty`
-- `significance`
-
-Each reviewer returns integer scores from 1 to 10. AutoPaper then averages across reviewers and computes a weighted `review_score`, so aggregated outputs can be fractional.
+1. Start your agent in this repository and ask it to read `program.md`.
+2. The agent runs `uv run reviewer.py --dry-run`, then begins editing `paper.tex`.
+3. `reviewer.py` scores the LaTeX source, the agent keeps or reverts the change, and the loop repeats.
 
 ## Quick Start
 
@@ -38,24 +18,28 @@ Each reviewer returns integer scores from 1 to 10. AutoPaper then averages acros
 # 1. Install dependencies
 uv sync
 
-# 2. Configure reviewers in reviewer.py
-# Edit the REVIEWERS list at the top of reviewer.py
+# 2. Edit the REVIEWERS list at the top of reviewer.py
 
 # 3. Replace paper.tex with your draft
-# results/ is optional; use it for experiment notes, human summaries, or raw artifacts, or leave it empty
+# results/ is optional; use it for notes, human summaries, or raw artifacts, or leave it empty
 
 # 4. Start Claude Code or another coding agent in this directory
 # Example prompt:
 # Read program.md and start optimizing the paper in paper.tex.
 ```
 
-The agent should run `uv run reviewer.py --dry-run` first to verify reviewer connectivity, then start the scored optimization loop. The full workflow is designed to run through an external agent such as Claude Code or Codex.
+## What the Agent Will Do
 
-`reviewer.py` reviews the LaTeX source in `paper.tex`, not a compiled PDF.
+- Run `uv run reviewer.py --dry-run` before the first scored review.
+- Track round history with git and `results.tsv`.
+- Keep a short working scratchpad in `.autopaper/working_memory.md`.
+- Ask the human when goals, facts, experiment details, or citations are ambiguous.
+- Work from first principles: fix the problem, contribution logic, evidence, and weakest claim before polishing style.
+- Treat bibliography facts conservatively. Reuse verified references already in the repo, but do not invent new citations or bibliography entries.
 
 ## Reviewer Configuration
 
-Configure models by editing the `REVIEWERS` list at the top of `reviewer.py`.
+Configure models by editing the `REVIEWERS` list in `reviewer.py`.
 
 ```python
 REVIEWERS = [
@@ -77,7 +61,7 @@ REVIEWERS = [
 ]
 ```
 
-Each entry uses the same OpenAI-compatible shape: `model`, `api_key`, and `base_url`. For other providers, keep the same structure and point `base_url` at your endpoint.
+Each reviewer entry uses the same shape: `model`, `api_key`, and `base_url`. For other providers, keep that structure and point `base_url` at your endpoint.
 
 ```python
 {
@@ -87,24 +71,17 @@ Each entry uses the same OpenAI-compatible shape: `model`, `api_key`, and `base_
 }
 ```
 
-At least `MIN_QUORUM` reviewers must succeed for a run to count.
+At least `MIN_QUORUM` reviewers must succeed for a scored run.
 
 ## Stopping Conditions
 
-The optimization loop stops when one of the following happens:
+The loop stops when one of the following happens:
 
 - `review_score` reaches `TARGET_SCORE`
-- score improvement stays below the configured threshold for `CONVERGENCE_ROUNDS`
+- improvement stays below the configured threshold for `CONVERGENCE_ROUNDS`
 - you stop the agent manually
 
-These rules are defined in `program.md`.
-
-## Agent Rules
-
-- Use git and `results.tsv` for round-by-round history, and `.autopaper/working_memory.md` for short-lived working memory.
-- When goals, facts, missing experiment details, or missing citations are ambiguous, ask the human instead of guessing.
-- Work from first principles: strengthen the problem statement, contribution logic, evidence chain, and weakest claim before polishing style.
-- Treat bibliography facts conservatively. Reuse verified references already in the repo, but do not invent new citations or bibliography entries.
+The full operating policy lives in `program.md`.
 
 ## Repository Layout
 
@@ -123,8 +100,8 @@ autopaper/
 └── README_zh.md
 ```
 
-## Notes
+## Limits
 
-- `reviewer.py` runs a connectivity preflight before the full review.
+- `reviewer.py` reviews the LaTeX source in `paper.tex`, not a compiled PDF.
+- A higher `review_score` is useful, but it is still a proxy metric, not a substitute for real peer review.
 - Do not commit API keys or provider secrets into the repository.
-- Higher `review_score` is useful, but it is still a proxy metric, not a substitute for real peer review.
