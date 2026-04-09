@@ -28,8 +28,9 @@ To set up a new experiment, work with the user to:
    ```
    commit	review_score	cost_usd	status	weakest_dim	description
    ```
-5. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish baseline score.
-6. **Confirm and go**: Confirm setup looks good.
+5. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
+6. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
+7. **Confirm and go**: Confirm setup looks good.
 
 Once you get confirmation, kick off the experimentation.
 
@@ -101,7 +102,7 @@ d4e5f6g	6.890	0.85	keep	novelty	add explicit comparison to prior work in intro
 
 The experiment runs on a dedicated branch (e.g. `autopaper/apr10`).
 
-**Do not pause to ask the human if you should continue.** The human might be asleep. If the reviewer API fails, try to fix it and retry. If you get 3 consecutive crashes, check `reviewer.py` configuration and environment variables.
+**Do not pause to ask the human if you should continue.** The human might be asleep. Before the first scored run, make sure the reviewer preflight passes. If the reviewer API fails, try to fix it and retry. If you get 3 consecutive crashes, check `reviewer.py` configuration and environment variables.
 
 The loop stops automatically when either stopping condition is met (see Configuration above), or when the human interrupts manually.
 

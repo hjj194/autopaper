@@ -1,9 +1,10 @@
 """
 AutoPaper reviewer harness. Single-file LLM ensemble reviewer.
-Usage: uv run reviewer.py
+Usage: uv run reviewer.py [--dry-run]
 DO NOT MODIFY -- this is the fixed evaluation harness.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -21,17 +22,17 @@ REVIEWERS = [
     {
         "model": "gpt-4o",
         "api_key": os.getenv("OPENAI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
     },
     {
-        "model": "claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-4-6",
         "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com/v1",
     },
     {
         "model": "gemini/gemini-2.0-flash",
         "api_key": os.getenv("GEMINI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
     },
 ]
 
@@ -296,6 +297,18 @@ def evaluate(paper_path: str = PAPER_PATH, skip_preflight: bool = False) -> dict
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only run reviewer connectivity preflight without scoring the paper.",
+    )
+    args = parser.parse_args()
+
+    if args.dry_run:
+        preflight_check()
+        sys.exit(0)
+
     t0 = time.time()
     metrics = evaluate()
     duration = time.time() - t0

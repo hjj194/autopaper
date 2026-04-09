@@ -41,15 +41,14 @@ uv sync
 
 # 3. Replace paper.tex with your draft
 
-# 4. Verify the reviewer setup
-uv run reviewer.py
-
-# 5. Start Claude Code or another coding agent in this directory
+# 4. Start Claude Code or another coding agent in this directory
 # Example prompt:
-# Read program.md and kick off a new experiment.
+# Read program.md and start optimizing the paper in paper.tex.
 ```
 
-`uv run reviewer.py` only runs the reviewer harness. The full optimization loop requires an external agent such as Claude Code or Codex to read `program.md`, edit `paper.tex`, and decide whether to keep each iteration.
+The agent should run `uv run reviewer.py --dry-run` first to verify reviewer connectivity, then start the scored optimization loop. The full workflow is designed to run through an external agent such as Claude Code or Codex.
+
+`reviewer.py` reviews the LaTeX source in `paper.tex`, not a compiled PDF.
 
 ## Reviewer Configuration
 
@@ -60,47 +59,22 @@ REVIEWERS = [
     {
         "model": "gpt-4o",
         "api_key": os.getenv("OPENAI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
     },
     {
-        "model": "claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-4-6",
         "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com/v1",
     },
     {
         "model": "gemini/gemini-2.0-flash",
         "api_key": os.getenv("GEMINI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
     },
 ]
 ```
 
-Template by provider:
-
-```python
-# OpenAI
-{
-    "model": "gpt-4o",
-    "api_key": os.getenv("OPENAI_API_KEY", ""),
-    "base_url": None,
-}
-
-# Anthropic
-{
-    "model": "claude-sonnet-4-6",
-    "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-    "base_url": None,
-}
-
-# Gemini
-{
-    "model": "gemini/gemini-2.0-flash",
-    "api_key": os.getenv("GEMINI_API_KEY", ""),
-    "base_url": None,
-}
-```
-
-For OpenAI-compatible endpoints, keep the same shape and set both `api_key` and `base_url`.
+Each entry uses the same OpenAI-compatible shape: `model`, `api_key`, and `base_url`. For other providers, keep the same structure and point `base_url` at your endpoint.
 
 ```python
 {
@@ -111,6 +85,16 @@ For OpenAI-compatible endpoints, keep the same shape and set both `api_key` and 
 ```
 
 At least `MIN_QUORUM` reviewers must succeed for a run to count.
+
+## Stopping Conditions
+
+The optimization loop stops when one of the following happens:
+
+- `review_score` reaches `TARGET_SCORE`
+- score improvement stays below the configured threshold for `CONVERGENCE_ROUNDS`
+- you stop the agent manually
+
+These rules are defined in `program.md`.
 
 ## Repository Layout
 

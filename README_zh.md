@@ -40,15 +40,14 @@ uv sync
 
 # 3. 用你的论文替换 paper.tex
 
-# 4. 验证审稿环境
-uv run reviewer.py
-
-# 5. 在当前目录启动 Claude Code 或其他 coding agent
+# 4. 在当前目录启动 Claude Code 或其他 coding agent
 # 示例提示词：
-# Read program.md and kick off a new experiment.
+# Read program.md and start optimizing the paper in paper.tex.
 ```
 
-`uv run reviewer.py` 只负责运行评审 harness。要执行完整的自动优化循环，仍然需要 Claude Code、Codex 这类外部 agent 读取 `program.md`、修改 `paper.tex` 并决定每轮是否保留改动。
+agent 应先执行 `uv run reviewer.py --dry-run` 验证审稿模型连通性，再进入正式评分和优化循环。完整工作流是为 Claude Code、Codex 这类外部 agent 设计的。
+
+`reviewer.py` 评审的是 `paper.tex` 里的 LaTeX 源文本，不是编译后的 PDF。
 
 ## 审稿模型配置
 
@@ -59,47 +58,22 @@ REVIEWERS = [
     {
         "model": "gpt-4o",
         "api_key": os.getenv("OPENAI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
     },
     {
-        "model": "claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-4-6",
         "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com/v1",
     },
     {
         "model": "gemini/gemini-2.0-flash",
         "api_key": os.getenv("GEMINI_API_KEY", ""),
-        "base_url": None,
+        "base_url": os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
     },
 ]
 ```
 
-按提供方分类的模板如下：
-
-```python
-# OpenAI
-{
-    "model": "gpt-4o",
-    "api_key": os.getenv("OPENAI_API_KEY", ""),
-    "base_url": None,
-}
-
-# Anthropic
-{
-    "model": "claude-sonnet-4-6",
-    "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-    "base_url": None,
-}
-
-# Gemini
-{
-    "model": "gemini/gemini-2.0-flash",
-    "api_key": os.getenv("GEMINI_API_KEY", ""),
-    "base_url": None,
-}
-```
-
-如果使用 OpenAI 兼容接口，结构保持一致，同时设置 `api_key` 和 `base_url`：
+三个提供方都使用同一种兼容格式：`model`、`api_key`、`base_url`。如果要接入其他服务，保持相同结构并把 `base_url` 指向你的接口即可：
 
 ```python
 {
@@ -110,6 +84,16 @@ REVIEWERS = [
 ```
 
 每次运行至少需要 `MIN_QUORUM` 个审稿模型成功返回结果。
+
+## 停止条件
+
+满足以下任一条件时，优化循环会停止：
+
+- `review_score` 达到 `TARGET_SCORE`
+- 连续 `CONVERGENCE_ROUNDS` 轮的分数提升都低于设定阈值
+- 你手动停止 agent
+
+这些规则定义在 `program.md` 中。
 
 ## 仓库结构
 
