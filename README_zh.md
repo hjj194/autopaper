@@ -39,7 +39,7 @@ uv sync
 # 2. 编辑 reviewer.py 顶部的 REVIEWERS 列表来配置审稿模型
 
 # 3. 用你的论文替换 paper.tex
-# results/ 是可选的，可以留空
+# results/ 是可选目录，可用于放实验记录、人工总结或原始材料；没有这些内容时可以留空
 
 # 4. 在当前目录启动 Claude Code 或其他 coding agent
 # 示例提示词：

@@ -40,7 +40,7 @@ uv sync
 # Edit the REVIEWERS list at the top of reviewer.py
 
 # 3. Replace paper.tex with your draft
-# results/ is optional and can stay empty
+# results/ is optional; use it for experiment notes, human summaries, or raw artifacts, or leave it empty
 
 # 4. Start Claude Code or another coding agent in this directory
 # Example prompt:
