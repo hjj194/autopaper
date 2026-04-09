@@ -37,21 +37,23 @@ Each reviewer returns integer scores from 1 to 10. AutoPaper then averages acros
 uv sync
 
 # 2. Configure reviewers in reviewer.py
-# Use environment variables for API keys
+# Edit the REVIEWERS list at the top of reviewer.py
 
 # 3. Replace paper.tex with your draft
 
-# 4. Run a baseline review
+# 4. Verify the reviewer setup
 uv run reviewer.py
 
-# 5. Start your coding agent in this directory
-# Example:
+# 5. Start Claude Code or another coding agent in this directory
+# Example prompt:
 # Read program.md and kick off a new experiment.
 ```
 
+`uv run reviewer.py` only runs the reviewer harness. The full optimization loop requires an external agent such as Claude Code or Codex to read `program.md`, edit `paper.tex`, and decide whether to keep each iteration.
+
 ## Reviewer Configuration
 
-Edit the `REVIEWERS` list in `reviewer.py`.
+Configure models by editing the `REVIEWERS` list at the top of `reviewer.py`.
 
 ```python
 REVIEWERS = [
@@ -73,7 +75,40 @@ REVIEWERS = [
 ]
 ```
 
-For OpenAI-compatible providers, set both `api_key` and `base_url`.
+Template by provider:
+
+```python
+# OpenAI
+{
+    "model": "gpt-4o",
+    "api_key": os.getenv("OPENAI_API_KEY", ""),
+    "base_url": None,
+}
+
+# Anthropic
+{
+    "model": "claude-sonnet-4-6",
+    "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
+    "base_url": None,
+}
+
+# Gemini
+{
+    "model": "gemini/gemini-2.0-flash",
+    "api_key": os.getenv("GEMINI_API_KEY", ""),
+    "base_url": None,
+}
+```
+
+For OpenAI-compatible endpoints, keep the same shape and set both `api_key` and `base_url`.
+
+```python
+{
+    "model": "your-model-name",
+    "api_key": os.getenv("PROVIDER_API_KEY", ""),
+    "base_url": "https://your-endpoint/v1",
+}
+```
 
 At least `MIN_QUORUM` reviewers must succeed for a run to count.
 

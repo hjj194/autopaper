@@ -36,22 +36,23 @@ AutoPaper 主要围绕三个文件运转：
 # 1. 安装依赖
 uv sync
 
-# 2. 在 reviewer.py 中配置审稿模型
-# API key 建议通过环境变量传入
+# 2. 编辑 reviewer.py 顶部的 REVIEWERS 列表来配置审稿模型
 
 # 3. 用你的论文替换 paper.tex
 
-# 4. 跑一次基线评审
+# 4. 验证审稿环境
 uv run reviewer.py
 
-# 5. 在当前目录启动 AI 代理
-# 示例：
+# 5. 在当前目录启动 Claude Code 或其他 coding agent
+# 示例提示词：
 # Read program.md and kick off a new experiment.
 ```
 
+`uv run reviewer.py` 只负责运行评审 harness。要执行完整的自动优化循环，仍然需要 Claude Code、Codex 这类外部 agent 读取 `program.md`、修改 `paper.tex` 并决定每轮是否保留改动。
+
 ## 审稿模型配置
 
-编辑 `reviewer.py` 顶部的 `REVIEWERS` 列表。
+通过编辑 `reviewer.py` 顶部的 `REVIEWERS` 列表来配置模型。
 
 ```python
 REVIEWERS = [
@@ -73,7 +74,40 @@ REVIEWERS = [
 ]
 ```
 
-如果使用 OpenAI 兼容接口，同时设置 `api_key` 和 `base_url` 即可。
+按提供方分类的模板如下：
+
+```python
+# OpenAI
+{
+    "model": "gpt-4o",
+    "api_key": os.getenv("OPENAI_API_KEY", ""),
+    "base_url": None,
+}
+
+# Anthropic
+{
+    "model": "claude-sonnet-4-6",
+    "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
+    "base_url": None,
+}
+
+# Gemini
+{
+    "model": "gemini/gemini-2.0-flash",
+    "api_key": os.getenv("GEMINI_API_KEY", ""),
+    "base_url": None,
+}
+```
+
+如果使用 OpenAI 兼容接口，结构保持一致，同时设置 `api_key` 和 `base_url`：
+
+```python
+{
+    "model": "your-model-name",
+    "api_key": os.getenv("PROVIDER_API_KEY", ""),
+    "base_url": "https://your-endpoint/v1",
+}
+```
 
 每次运行至少需要 `MIN_QUORUM` 个审稿模型成功返回结果。
 
