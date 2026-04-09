@@ -2,53 +2,33 @@
 
 中文 | [English](README.md)
 
-自主学术论文写作优化系统，灵感来自 [autoresearch](https://github.com/karpathy/autoresearch)。
+AutoPaper 是一个极简框架，用固定的多模型审稿器驱动 AI 代理迭代优化 LaTeX 论文。
 
-## 这个仓库做什么
+代理负责修改草稿，评审器负责打分，整个循环围绕单一指标 `review_score` 展开。
 
-AutoPaper 用来让 AI 代理迭代优化一篇 LaTeX 论文草稿。
+## 为什么是 AutoPaper
 
-基本循环很简单：
-1. 修改 `paper.tex`
-2. 运行 `reviewer.py`
-3. 读取当前最低分维度和总分
-4. 决定保留还是丢弃这次修改
-5. 重复执行
+- 单一编辑目标。代理只改 `paper.tex`。
+- 固定评审基线。`reviewer.py` 在实验过程中保持不变。
+- 多模型独立打分。多个 LLM 对同一稿件分别评审。
+- 简单的优化闭环。修改、评审、保留或回退，然后继续。
 
-评审器会用多个 LLM 从四个维度打分：
-- soundness
-- clarity
-- novelty
-- significance
+## 工作方式
 
-最后汇总成单一指标 `review_score`。
+AutoPaper 主要围绕三个文件运转：
 
-## 最小发布目录
+- `paper.tex`：代理编辑的论文草稿
+- `reviewer.py`：负责打分的评审 harness
+- `program.md`：代理实验循环的操作说明
 
-```text
-autopaper/
-├── paper.tex
-├── reviewer.py
-├── program.md
-├── pyproject.toml
-├── uv.lock
-├── results/
-│   └── raw/
-├── README.md
-└── README_zh.md
-```
+评审器从四个维度打分：
 
-## 核心文件
+- `soundness`
+- `clarity`
+- `novelty`
+- `significance`
 
-- `paper.tex`：代理唯一应该修改的文件
-- `reviewer.py`：固定评审 harness
-- `program.md`：代理实验循环说明
-
-## 环境要求
-
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/)
-- 至少 2 个可用的 LLM 审稿模型
+每个审稿模型返回 1 到 10 的整数分。AutoPaper 再对多位审稿人的结果取平均并计算加权 `review_score`，所以最终聚合输出可以是小数。
 
 ## 快速开始
 
@@ -65,15 +45,13 @@ uv sync
 uv run reviewer.py
 
 # 5. 在当前目录启动 AI 代理
-# 示例提示词：
+# 示例：
 # Read program.md and kick off a new experiment.
 ```
 
 ## 审稿模型配置
 
 编辑 `reviewer.py` 顶部的 `REVIEWERS` 列表。
-
-示例：
 
 ```python
 REVIEWERS = [
@@ -95,11 +73,28 @@ REVIEWERS = [
 ]
 ```
 
-如果使用 OpenAI 兼容接口，同时配置 `api_key` 和 `base_url` 即可。
+如果使用 OpenAI 兼容接口，同时设置 `api_key` 和 `base_url` 即可。
+
+每次运行至少需要 `MIN_QUORUM` 个审稿模型成功返回结果。
+
+## 仓库结构
+
+```text
+autopaper/
+├── paper.tex
+├── reviewer.py
+├── program.md
+├── pyproject.toml
+├── uv.lock
+├── results/
+│   └── raw/
+├── README.md
+└── README_zh.md
+```
 
 ## 说明
 
-- `reviewer.py` 在正式评审前会做连通性 preflight 检查。
-- 至少要有 `MIN_QUORUM` 个模型成功返回结果。
-- `results/` 可以放人工总结或原始实验材料，也可以先空着。
-- 不要把密钥直接提交进 `reviewer.py`。
+- `reviewer.py` 在正式评审前会先做连通性 preflight 检查。
+- `results/` 可以存放实验记录或原始材料，也可以保持为空。
+- 不要把 API key 或其他密钥直接提交到仓库里。
+- 更高的 `review_score` 有参考价值，但它仍然只是代理指标，不能替代真实同行评审。

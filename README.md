@@ -2,55 +2,35 @@
 
 [中文](README_zh.md) | English
 
-Autonomous academic paper writing optimization, inspired by [autoresearch](https://github.com/karpathy/autoresearch).
+AutoPaper is a minimal framework for iteratively improving a LaTeX paper with an AI agent and a fixed multi-LLM reviewer.
 
-## What this repo does
+The agent edits the draft, the reviewer scores it, and the loop repeats around a single metric: `review_score`.
 
-AutoPaper lets an AI agent iteratively improve a LaTeX paper draft.
+## Why AutoPaper
 
-The loop is simple:
-1. Edit `paper.tex`
-2. Run `reviewer.py`
-3. Read the weakest dimension and score
-4. Keep or discard the draft change
-5. Repeat
+- Single editable target. The agent only changes `paper.tex`.
+- Fixed evaluation harness. `reviewer.py` stays constant across runs.
+- Multi-reviewer scoring. Multiple LLMs score the same draft independently.
+- Simple optimization loop. Improve, review, keep or discard, repeat.
 
-The reviewer is a fixed multi-LLM ensemble that scores four dimensions:
-- soundness
-- clarity
-- novelty
-- significance
+## How It Works
 
-Those scores are aggregated into a single `review_score`.
+AutoPaper is built around three files:
 
-## Minimal repo layout
+- `paper.tex`: the paper draft the agent edits
+- `reviewer.py`: the review harness that scores the draft
+- `program.md`: the operating instructions for the agent loop
 
-```text
-autopaper/
-├── paper.tex
-├── reviewer.py
-├── program.md
-├── pyproject.toml
-├── uv.lock
-├── results/
-│   └── raw/
-├── README.md
-└── README_zh.md
-```
+The reviewer scores four dimensions:
 
-## Key files
+- `soundness`
+- `clarity`
+- `novelty`
+- `significance`
 
-- `paper.tex`: the only file the agent should edit
-- `reviewer.py`: fixed review harness
-- `program.md`: agent instructions for the experiment loop
+Each reviewer returns integer scores from 1 to 10. AutoPaper then averages across reviewers and computes a weighted `review_score`, so aggregated outputs can be fractional.
 
-## Requirements
-
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/)
-- At least 2 reachable LLM reviewers
-
-## Quick start
+## Quick Start
 
 ```bash
 # 1. Install dependencies
@@ -65,15 +45,13 @@ uv sync
 uv run reviewer.py
 
 # 5. Start your coding agent in this directory
-# Example prompt:
+# Example:
 # Read program.md and kick off a new experiment.
 ```
 
-## Reviewer configuration
+## Reviewer Configuration
 
 Edit the `REVIEWERS` list in `reviewer.py`.
-
-Example:
 
 ```python
 REVIEWERS = [
@@ -97,9 +75,26 @@ REVIEWERS = [
 
 For OpenAI-compatible providers, set both `api_key` and `base_url`.
 
+At least `MIN_QUORUM` reviewers must succeed for a run to count.
+
+## Repository Layout
+
+```text
+autopaper/
+├── paper.tex
+├── reviewer.py
+├── program.md
+├── pyproject.toml
+├── uv.lock
+├── results/
+│   └── raw/
+├── README.md
+└── README_zh.md
+```
+
 ## Notes
 
-- `reviewer.py` runs a connectivity preflight before full evaluation.
-- At least `MIN_QUORUM` reviewers must succeed.
-- `results/` is optional input for human notes or raw experiment artifacts.
-- Do not commit secrets into `reviewer.py`.
+- `reviewer.py` runs a connectivity preflight before the full review.
+- `results/` can hold experiment notes or raw artifacts, but can also stay empty.
+- Do not commit API keys or provider secrets into the repository.
+- Higher `review_score` is useful, but it is still a proxy metric, not a substitute for real peer review.
