@@ -1,0 +1,17 @@
+[project]
+name = "autopaper"
+version = "0.1.0"
+description = "Autonomous academic paper writing optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "litellm>=1.40.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
