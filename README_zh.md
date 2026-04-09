@@ -39,6 +39,7 @@ uv sync
 # 2. 编辑 reviewer.py 顶部的 REVIEWERS 列表来配置审稿模型
 
 # 3. 用你的论文替换 paper.tex
+# results/ 是可选的，可以留空
 
 # 4. 在当前目录启动 Claude Code 或其他 coding agent
 # 示例提示词：
@@ -113,6 +114,5 @@ autopaper/
 ## 说明
 
 - `reviewer.py` 在正式评审前会先做连通性 preflight 检查。
-- `results/` 可以存放实验记录或原始材料，也可以保持为空。
 - 不要把 API key 或其他密钥直接提交到仓库里。
 - 更高的 `review_score` 有参考价值，但它仍然只是代理指标，不能替代真实同行评审。

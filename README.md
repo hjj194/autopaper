@@ -40,6 +40,7 @@ uv sync
 # Edit the REVIEWERS list at the top of reviewer.py
 
 # 3. Replace paper.tex with your draft
+# results/ is optional and can stay empty
 
 # 4. Start Claude Code or another coding agent in this directory
 # Example prompt:
@@ -114,6 +115,5 @@ autopaper/
 ## Notes
 
 - `reviewer.py` runs a connectivity preflight before the full review.
-- `results/` can hold experiment notes or raw artifacts, but can also stay empty.
 - Do not commit API keys or provider secrets into the repository.
 - Higher `review_score` is useful, but it is still a proxy metric, not a substitute for real peer review.
