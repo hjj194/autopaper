@@ -5,58 +5,135 @@ DO NOT MODIFY -- this is the fixed evaluation harness.
 """
 
 import argparse
+import asyncio
 import json
 import os
 import sys
 import time
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 import litellm
 
 litellm.suppress_debug_info = True
 
 # ---------------------------------------------------------------------------
-# Configuration -- edit these, not the code below
+# Configuration -- edit autopaper.toml, not this file
 # ---------------------------------------------------------------------------
 
-REVIEWERS = [
+CONFIG_PATH = "autopaper.toml"
+
+_ENV_KEY_MAP = {
+    "gpt": "OPENAI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+_DEFAULT_MODELS = [
     {
-        "model": "gpt-4o",
-        "api_key": os.getenv("OPENAI_API_KEY", ""),
-        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "model": "gpt-5.4",
+        "api_key": "",
+        "base_url": "https://api.openai.com/v1",
     },
     {
         "model": "anthropic/claude-sonnet-4-6",
-        "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
-        "base_url": os.getenv("ANTHROPIC_BASE_URL") or "https://api.anthropic.com/v1",
+        "api_key": "",
+        "base_url": "https://api.anthropic.com/v1",
     },
     {
         "model": "gemini/gemini-2.0-flash",
-        "api_key": os.getenv("GEMINI_API_KEY", ""),
-        "base_url": os.getenv("GEMINI_BASE_URL") or "https://generativelanguage.googleapis.com/v1beta/openai",
+        "api_key": "",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
     },
 ]
 
-TARGET_VENUE = "NeurIPS"
-WEIGHTS = {"soundness": 0.35, "clarity": 0.30, "novelty": 0.20, "significance": 0.15}
+
+def _resolve_api_key(model_entry: dict) -> str:
+    """Return the API key from the entry, falling back to env vars."""
+    key = model_entry.get("api_key", "")
+    if key and key != "your-key-here":
+        return key
+    model_name = model_entry.get("model", "").lower()
+    for prefix, env_var in _ENV_KEY_MAP.items():
+        if prefix in model_name:
+            return os.getenv(env_var, "")
+    return ""
+
+
+def load_config(path: str = CONFIG_PATH) -> dict:
+    """Load configuration from TOML file, falling back to defaults."""
+    defaults = {
+        "reviewer": {
+            "venue": "NeurIPS",
+            "min_quorum": 2,
+            "max_tokens": 128000,
+            "request_timeout": 120,
+            "temperature": 0.0,
+        },
+        "weights": {
+            "soundness": 0.35,
+            "clarity": 0.30,
+            "novelty": 0.20,
+            "significance": 0.15,
+        },
+        "models": _DEFAULT_MODELS,
+    }
+
+    if not os.path.exists(path):
+        # Fall back to env vars for default model keys
+        for m in defaults["models"]:
+            m["api_key"] = _resolve_api_key(m)
+        return defaults
+
+    with open(path, "rb") as f:
+        raw = tomllib.load(f)
+
+    config = {
+        "reviewer": {**defaults["reviewer"], **raw.get("reviewer", {})},
+        "weights": {**defaults["weights"], **raw.get("weights", {})},
+        "models": raw.get("models", defaults["models"]),
+    }
+
+    if not config["models"]:
+        raise ValueError("autopaper.toml: [[models]] list must not be empty")
+
+    for m in config["models"]:
+        m["api_key"] = _resolve_api_key(m)
+
+    return config
+
+
+_CONFIG = load_config()
+REVIEWERS = _CONFIG["models"]
+TARGET_VENUE = _CONFIG["reviewer"]["venue"]
+WEIGHTS = _CONFIG["weights"]
 PAPER_PATH = "paper.tex"
-MAX_TOKENS = 128000
-REQUEST_TIMEOUT = 120
-MIN_QUORUM = 2
+MAX_TOKENS = _CONFIG["reviewer"]["max_tokens"]
+REQUEST_TIMEOUT = _CONFIG["reviewer"]["request_timeout"]
+TEMPERATURE = _CONFIG["reviewer"]["temperature"]
+MIN_QUORUM = _CONFIG["reviewer"]["min_quorum"]
 
 
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
 
-def compute_review_score(scores: dict) -> float:
+def compute_review_score(scores: dict, weights: dict | None = None) -> float:
     """Weighted average of dimension scores."""
-    return sum(scores[dim] * weight for dim, weight in WEIGHTS.items())
+    w = weights if weights is not None else WEIGHTS
+    return sum(scores[dim] * weight for dim, weight in w.items())
 
 
 
-def find_weakest_dim(scores: dict) -> str:
+def find_weakest_dim(scores: dict, weights: dict | None = None) -> str:
     """Return the dimension with the lowest score."""
-    return min(WEIGHTS.keys(), key=lambda d: scores[d])
+    w = weights if weights is not None else WEIGHTS
+    return min(w.keys(), key=lambda d: scores[d])
 
 
 
@@ -93,6 +170,18 @@ def average_scores(results: list[dict]) -> dict:
     """Average scores across multiple reviewer results."""
     dims = list(WEIGHTS.keys())
     return {dim: sum(r[dim] for r in results) / len(results) for dim in dims}
+
+
+
+def compute_spread(results: list[dict], weights: dict | None = None) -> tuple[str, float]:
+    """Return (dimension, spread) for the dimension with the highest reviewer disagreement."""
+    w = weights if weights is not None else WEIGHTS
+    spreads = {
+        dim: max(r[dim] for r in results) - min(r[dim] for r in results)
+        for dim in w
+    }
+    worst = max(spreads, key=spreads.get)
+    return worst, spreads[worst]
 
 
 
@@ -176,29 +265,44 @@ Respond with JSON only. No preamble, no explanation outside the JSON."""
 # Preflight check
 # ---------------------------------------------------------------------------
 
-def preflight_check() -> None:
+async def _ping_reviewer(reviewer: dict) -> tuple[str, bool, str]:
+    """Ping one reviewer. Returns (model_name, success, error_msg)."""
+    model = _resolve_model(reviewer)
+    kwargs = {
+        "model": model,
+        "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
+        "max_tokens": 5,
+        "temperature": 0,
+        "timeout": REQUEST_TIMEOUT,
+    }
+    if reviewer.get("api_key"):
+        kwargs["api_key"] = reviewer["api_key"]
+    if reviewer.get("base_url"):
+        kwargs["base_url"] = reviewer["base_url"]
+    try:
+        await litellm.acompletion(**kwargs)
+        return reviewer["model"], True, ""
+    except Exception as e:
+        return reviewer["model"], False, str(e)
+
+
+async def preflight_check() -> None:
     """Check connectivity for all reviewers before full evaluation."""
     print("[preflight] Checking reviewer connectivity...")
+    results = await asyncio.gather(
+        *[_ping_reviewer(r) for r in REVIEWERS], return_exceptions=True
+    )
     reachable = 0
-    for reviewer in REVIEWERS:
-        model = _resolve_model(reviewer)
-        kwargs = {
-            "model": model,
-            "messages": [{"role": "user", "content": "Reply with the single word: ok"}],
-            "max_tokens": 5,
-            "temperature": 0,
-            "timeout": REQUEST_TIMEOUT,
-        }
-        if reviewer.get("api_key"):
-            kwargs["api_key"] = reviewer["api_key"]
-        if reviewer.get("base_url"):
-            kwargs["base_url"] = reviewer["base_url"]
-        try:
-            litellm.completion(**kwargs)
-            print(f"[preflight] ✓ {reviewer['model']}")
+    for result in results:
+        if isinstance(result, Exception):
+            print(f"[preflight] ✗ (unexpected error) -- {result}", file=sys.stderr)
+            continue
+        name, ok, err = result
+        if ok:
+            print(f"[preflight] ✓ {name}")
             reachable += 1
-        except Exception as e:
-            print(f"[preflight] ✗ {reviewer['model']} -- {e}", file=sys.stderr)
+        else:
+            print(f"[preflight] ✗ {name} -- {err}", file=sys.stderr)
 
     if not check_quorum(reachable):
         print(
@@ -223,13 +327,13 @@ def _resolve_model(reviewer: dict) -> str:
 
 
 
-def call_reviewer(reviewer: dict, paper_text: str) -> tuple[dict, float] | None:
+async def call_reviewer(reviewer: dict, paper_text: str) -> tuple[dict, float] | None:
     """Call a single reviewer. Returns (parsed_scores, cost_usd) or None on failure."""
     prompt = REVIEWER_PROMPT_TEMPLATE.format(venue=TARGET_VENUE, paper=paper_text)
     kwargs = {
         "model": _resolve_model(reviewer),
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3,
+        "temperature": TEMPERATURE,
         "timeout": REQUEST_TIMEOUT,
     }
     if reviewer.get("api_key"):
@@ -238,7 +342,7 @@ def call_reviewer(reviewer: dict, paper_text: str) -> tuple[dict, float] | None:
         kwargs["base_url"] = reviewer["base_url"]
 
     try:
-        response = litellm.completion(**kwargs)
+        response = await litellm.acompletion(**kwargs)
         raw = response.choices[0].message.content
         scores = parse_review_response(raw)
         try:
@@ -252,24 +356,36 @@ def call_reviewer(reviewer: dict, paper_text: str) -> tuple[dict, float] | None:
 
 
 
-def evaluate(paper_path: str = PAPER_PATH, skip_preflight: bool = False) -> dict:
+async def evaluate(paper_path: str = PAPER_PATH, skip_preflight: bool = False) -> dict:
     """Run all reviewers and return aggregated scores."""
     if not skip_preflight:
-        preflight_check()
+        await preflight_check()
     with open(paper_path, "r", encoding="utf-8") as f:
         paper_text = f.read()
 
     paper_text = truncate_paper(paper_text)
 
+    outcomes = await asyncio.gather(
+        *[call_reviewer(r, paper_text) for r in REVIEWERS], return_exceptions=True
+    )
+
     results = []
+    per_reviewer = []
     total_cost = 0.0
 
-    for reviewer in REVIEWERS:
-        outcome = call_reviewer(reviewer, paper_text)
-        if outcome is not None:
-            scores, cost = outcome
-            results.append(scores)
-            total_cost += cost
+    for i, outcome in enumerate(outcomes):
+        if isinstance(outcome, Exception):
+            print(
+                f"[WARN] Reviewer {REVIEWERS[i]['model']} failed: {outcome}",
+                file=sys.stderr,
+            )
+            continue
+        if outcome is None:
+            continue
+        scores, cost = outcome
+        results.append(scores)
+        per_reviewer.append({"model": REVIEWERS[i]["model"], "scores": scores})
+        total_cost += cost
 
     successes = len(results)
     if not check_quorum(successes):
@@ -283,6 +399,7 @@ def evaluate(paper_path: str = PAPER_PATH, skip_preflight: bool = False) -> dict
     avg = average_scores(results)
     score = compute_review_score(avg)
     weakest = find_weakest_dim(avg)
+    spread_dim, spread_val = compute_spread(results)
 
     return {
         "review_score": score,
@@ -293,6 +410,9 @@ def evaluate(paper_path: str = PAPER_PATH, skip_preflight: bool = False) -> dict
         "weakest_dim": weakest,
         "cost_usd": total_cost,
         "reviewers_ok": successes,
+        "per_reviewer": per_reviewer,
+        "max_spread_dim": spread_dim,
+        "max_spread_val": spread_val,
     }
 
 
@@ -306,11 +426,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.dry_run:
-        preflight_check()
+        asyncio.run(preflight_check())
         sys.exit(0)
 
     t0 = time.time()
-    metrics = evaluate()
+    metrics = asyncio.run(evaluate())
     duration = time.time() - t0
 
     print("---")
@@ -323,4 +443,11 @@ if __name__ == "__main__":
     print(f"cost_usd:       {metrics['cost_usd']:.2f}")
     print(f"duration_sec:   {duration:.0f}")
     print(f"reviewers_ok:   {metrics['reviewers_ok']}/{len(REVIEWERS)}")
+    print("---")
+    for entry in metrics["per_reviewer"]:
+        s = entry["scores"]
+        dims = " ".join(f"{d}={int(s[d])}" for d in WEIGHTS)
+        print(f"reviewer:{entry['model']}:  {dims}")
+    print(f"max_spread_dim:   {metrics['max_spread_dim']}")
+    print(f"max_spread_val:   {metrics['max_spread_val']:.1f}")
     print("---")

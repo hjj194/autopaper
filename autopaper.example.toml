@@ -1,0 +1,27 @@
+[reviewer]
+venue = "NeurIPS"
+min_quorum = 2
+max_tokens = 128000
+request_timeout = 120
+temperature = 0.0
+
+[weights]
+soundness = 0.35
+clarity = 0.30
+novelty = 0.20
+significance = 0.15
+
+[[models]]
+model = "gpt-5.4"
+api_key = "your-key-here"
+base_url = "https://api.openai.com/v1"
+
+[[models]]
+model = "anthropic/claude-sonnet-4-6"
+api_key = "your-key-here"
+base_url = "https://api.anthropic.com/v1"
+
+[[models]]
+model = "gemini/gemini-2.0-flash"
+api_key = "your-key-here"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"

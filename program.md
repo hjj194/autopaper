@@ -97,14 +97,22 @@ novelty:        6.5
 significance:   7.1
 weakest_dim:    clarity
 cost_usd:       0.87
-duration_sec:   142
+duration_sec:   52
 reviewers_ok:   3/3
+---
+reviewer:gpt-5.4:  soundness=8 clarity=7 novelty=7 significance=7
+reviewer:claude-sonnet-4-6:  soundness=8 clarity=7 novelty=6 significance=7
+reviewer:gemini-2.0-flash:  soundness=7 clarity=7 novelty=7 significance=8
+max_spread_dim:   novelty
+max_spread_val:   1.0
 ---
 ```
 
+`max_spread_dim` and `max_spread_val` show the dimension with the highest disagreement across reviewers. When `max_spread_val` > 2.0, that dimension's score is unreliable — see the revert rules below.
+
 Extract key metrics:
 ```bash
-grep -E "^(review_score|cost_usd|weakest_dim):" review.log
+grep -E "^(review_score|cost_usd|weakest_dim|max_spread_dim|max_spread_val):" review.log
 ```
 
 ## Logging results
@@ -149,11 +157,19 @@ LOOP FOREVER (until a stop condition triggers):
 5. Update `.autopaper/working_memory.md` with the current plan, failed ideas to avoid, and any open questions.
 6. `git commit` — one commit per round only, so that `HEAD~1` revert is precise.
 7. Run the reviewer: `$PYTHON_CMD reviewer.py > review.log 2>&1`
-8. Extract results: `grep -E "^(review_score|cost_usd|weakest_dim):" review.log`
+8. Extract results: `grep -E "^(review_score|cost_usd|weakest_dim|max_spread_val):" review.log`
 9. If grep output is empty, the reviewer crashed. Run `tail -n 30 review.log` to read the error. If fixable (e.g., missing API key, JSON parse error), fix and re-run. If not, log as crash and revert.
 10. Record in results.tsv (6 columns: commit, review_score, cost_usd, status, weakest_dim, description)
-11. If review_score improved (higher) → keep the commit, advance the branch
-12. If review_score equal or worse → `git reset --hard HEAD~1` to revert
+11. **Revert decision** (tolerance-band):
+    - If review_score improved by >= 0.1 over previous best → **keep** the commit
+    - If review_score dropped by >= 0.3 from previous best → **revert** (`git reset --hard HEAD~1`)
+    - If change is within [-0.3, +0.1), **or** `max_spread_val` > 2.0 → run a **confirmation round**:
+      a. `cp review.log review_run1.log`
+      b. Re-run: `$PYTHON_CMD reviewer.py > review.log 2>&1`
+      c. Average the two `review_score` values. If the average >= previous best → keep; otherwise → revert.
+      d. Log a single row to `results.tsv` using the averaged score. Append `(confirmed)` to the description.
+      e. Do **not** re-confirm if the second run also lands in the gray zone — use the averaged score as final.
+      f. A confirmation round counts as part of the same round, not a separate round for convergence tracking.
 13. **Check stop conditions** (evaluate after each round):
     - If `TARGET_SCORE > 0` and `review_score >= TARGET_SCORE` → stop, report final score
     - If `CONVERGENCE_ROUNDS > 0` and the last N rounds all had improvement < 0.05 → stop, report convergence
