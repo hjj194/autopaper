@@ -144,9 +144,7 @@ Agent 遵循 `program.md` 中的详细协议运行整个循环：
 
 ```
 paper.tex              ← 你的论文（被优化的对象）
-paper_diff.tex         ← 运行结束后生成：相对原稿的标注 diff
 reviewer.py            ← 固定的评审引擎——不要改
-check_diff.py          ← 验证 paper_diff.tex 的标注是否合法
 program.md             ← agent 的完整运行协议
 autopaper.toml         ← 模型配置和 API key（已 gitignore）
 autopaper.example.toml ← 配置模板（已提交）

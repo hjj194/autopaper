@@ -25,12 +25,11 @@ To set up a new experiment, work with the user to:
    - `.autopaper/working_memory.md` — lightweight run memory. Read it if present; create it if missing.
    - `results/results.md` — (optional) human-written experiment summary. Only present when writing a paper from scratch or when the human wants to provide extra context.
    - `results/raw/` — (optional) raw experimental data (CSV, figures, logs). Only consult if present and you need to verify specific numbers not already in `paper.tex`.
-4. **Save the original paper**: `cp paper.tex paper_original.tex` — this snapshot is used to generate a diff at the end. Do not modify `paper_original.tex` at any point during the run.
-5. **Initialize results.tsv**: Create `results.tsv` with just the header row:
+4. **Initialize results.tsv**: Create `results.tsv` with just the header row:
    ```
    commit	review_score	cost_usd	status	weakest_dim	description
    ```
-6. **Initialize working memory**: Ensure `.autopaper/working_memory.md` exists with a short running summary:
+5. **Initialize working memory**: Ensure `.autopaper/working_memory.md` exists with a short running summary:
    ```
    # Working Memory
    - Current goal:
@@ -41,15 +40,15 @@ To set up a new experiment, work with the user to:
    - Open questions for the human:
    - Reference constraints:
    ```
-7. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
-9. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
+6. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
+7. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
    - Claims that cannot be verified from the paper or `results/` alone.
    - Places where a citation is clearly needed but no matching reference exists in the repo.
    - Missing or inconsistent numbers, tables, or experimental details.
    - Unclear goals — is this a methods paper, an empirical study, a position paper?
    Present all findings to the user and resolve them before proceeding. If there are none, say so.
-10. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
-11. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
+8. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
+9. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
 
 Once you get confirmation, kick off the experimentation. **Do not ask the human anything during the loop.** All ambiguities should have been resolved in step 7.
 
@@ -184,61 +183,9 @@ LOOP FOREVER (until a stop condition triggers):
 
 ## When the loop stops
 
-Run the following to generate a change summary for the user:
-
-Read `paper_original.tex` and `paper.tex`, compare them, and write `paper_diff.tex`. Use the `changes` package for annotation — it is purpose-built for this and handles colors and strikethrough automatically.
-
-Add to the preamble:
-```latex
-\usepackage[final]{changes}
-```
-
-Then annotate at three levels:
-
-**Level 1 — plain text changes** (sentences, phrases within a paragraph):
-```latex
-\added{new sentence or phrase}
-\deleted{removed sentence or phrase}
-\replaced{new text}{old text}
-```
-
-**Level 2 — environment-level or large block changes** (equations, tables, figures, lists, or any deleted block longer than 3 lines):
-Never wrap `\begin{}`/`\end{}` inside any annotation command — LaTeX forbids it. Also never use `\deleted{}` for blocks longer than 3 lines regardless of content. Use comment markers instead:
-```latex
-% [ADDED BEGIN]
-\begin{equation}
-  L = ...
-\end{equation}
-% [ADDED END]
-
-% [DELETED BEGIN]
-\begin{equation}
-  L_{\text{old}} = ...
-\end{equation}
-% [DELETED END]
-```
-
-When in doubt, use comment markers. A comment marker never causes a compilation error; a misused `\deleted{}` always does.
-
-**Level 3 — structural changes** (paragraphs reordered, sections moved, major rewrites):
-Do not attempt to annotate these inline. Describe them in the plain-text run summary instead.
-
-**Additional rules:**
-- Never let an `\added{}` or `\deleted{}` span a paragraph break (`\n\n`). Split at paragraph boundaries.
-- Do not annotate inside `\title{}`, `\author{}`, or preamble commands — note changes there as a `% [CHANGED: ...]` comment.
-- Compare at sentence/paragraph level, not character by character. Ignore pure whitespace or formatting differences.
-
-Then print a plain-text run summary:
+Print a plain-text run summary:
 - Final `review_score` and baseline score (gain)
 - Total rounds run, total cost
 - Number of keep vs discard rounds
 - Which dimensions improved the most
 - Any open questions noted in `.autopaper/working_memory.md`
-
-After writing `paper_diff.tex`, run the validator:
-```bash
-uv run python check_diff.py paper_diff.tex
-```
-If it reports issues, fix them in `paper_diff.tex` and re-run until it exits clean. Only then hand the file to the user.
-
-The user can compile `paper_diff.tex` with their existing LaTeX environment (Overleaf, pdflatex, etc.) to review all changes. No PDF compilation is done by the agent.
