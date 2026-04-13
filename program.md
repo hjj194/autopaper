@@ -186,24 +186,45 @@ LOOP FOREVER (until a stop condition triggers):
 
 Run the following to generate a change summary for the user:
 
-Read `paper_original.tex` and `paper.tex`, compare them, and write `paper_diff.tex` — a copy of the final paper with changes annotated using standard LaTeX markup:
+Read `paper_original.tex` and `paper.tex`, compare them, and write `paper_diff.tex`. Use the `changes` package for annotation — it is purpose-built for this and handles colors and strikethrough automatically.
 
-- **Added text**: wrap in `\textcolor{blue}{...}`
-- **Deleted text**: wrap in `\textcolor{red}{\sout{...}}`
-- Add these two lines to the preamble if not already present:
-  ```latex
-  \usepackage{xcolor}
-  \usepackage[normalem]{ulem}
-  ```
+Add to the preamble:
+```latex
+\usepackage[final]{changes}
+```
 
-Compare at the sentence or paragraph level — not character by character. Focus on meaningful content changes; ignore pure whitespace or formatting differences. No external tools needed; you produce `paper_diff.tex` directly by reading both files and writing the annotated output.
+Then annotate at three levels:
 
-**Compilation hygiene** — follow these rules to avoid LaTeX errors:
-- Never wrap a block that spans a paragraph break (`\n\n`) inside a single `\textcolor{}` or `\sout{}`. Split at paragraph boundaries and annotate each paragraph separately.
-- Never wrap a LaTeX environment (`\begin{...}...\end{...}`, equations, tables, figures, lists) inside a text annotation command. Instead, add a short comment above it, e.g. `% [ADDED]` or `% [REMOVED]`.
-- Keep `\sout{}` content short (one sentence max). For longer deleted blocks, use a `% [DELETED: ...]` comment instead.
-- Do not annotate changes inside `\title{}`, `\author{}`, or other preamble commands — note them in a comment at the top of the file instead.
-- After writing `paper_diff.tex`, mentally scan for any annotation that crosses a blank line or wraps an environment, and fix it before finishing.
+**Level 1 — plain text changes** (sentences, phrases within a paragraph):
+```latex
+\added{new sentence or phrase}
+\deleted{removed sentence or phrase}
+\replaced{new text}{old text}
+```
+
+**Level 2 — environment-level changes** (equations, tables, figures, itemize blocks):
+Never wrap `\begin{}`/`\end{}` inside any annotation command — LaTeX forbids it. Instead, bracket the environment with comment markers:
+```latex
+% [ADDED BEGIN]
+\begin{equation}
+  L = ...
+\end{equation}
+% [ADDED END]
+
+% [DELETED BEGIN]
+\begin{equation}
+  L_{\text{old}} = ...
+\end{equation}
+% [DELETED END]
+```
+
+**Level 3 — structural changes** (paragraphs reordered, sections moved, major rewrites):
+Do not attempt to annotate these inline. Describe them in the plain-text run summary instead.
+
+**Additional rules:**
+- Never let an `\added{}` or `\deleted{}` span a paragraph break (`\n\n`). Split at paragraph boundaries.
+- Do not annotate inside `\title{}`, `\author{}`, or preamble commands — note changes there as a `% [CHANGED: ...]` comment.
+- Compare at sentence/paragraph level, not character by character. Ignore pure whitespace or formatting differences.
 
 Then print a plain-text run summary:
 - Final `review_score` and baseline score (gain)
@@ -211,5 +232,11 @@ Then print a plain-text run summary:
 - Number of keep vs discard rounds
 - Which dimensions improved the most
 - Any open questions noted in `.autopaper/working_memory.md`
+
+After writing `paper_diff.tex`, run the validator:
+```bash
+uv run python check_diff.py paper_diff.tex
+```
+If it reports issues, fix them in `paper_diff.tex` and re-run until it exits clean. Only then hand the file to the user.
 
 The user can compile `paper_diff.tex` with their existing LaTeX environment (Overleaf, pdflatex, etc.) to review all changes. No PDF compilation is done by the agent.

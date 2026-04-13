@@ -144,7 +144,9 @@ The agent follows `program.md` — a detailed protocol that governs the entire l
 
 ```
 paper.tex              ← your paper (the thing being optimized)
+paper_diff.tex         ← generated at the end: annotated diff vs original
 reviewer.py            ← fixed scoring harness — do not edit
+check_diff.py          ← validates paper_diff.tex before handing to user
 program.md             ← full operating protocol for the agent
 autopaper.toml         ← your model config and API keys (gitignored)
 autopaper.example.toml ← config template (committed)
