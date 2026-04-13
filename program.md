@@ -41,12 +41,7 @@ To set up a new experiment, work with the user to:
    - Open questions for the human:
    - Reference constraints:
    ```
-7. **Check latexdiff**: Run `command -v latexdiff` to check if it is available.
-   - If missing, install it before continuing:
-     - Linux (TeX Live): `sudo apt-get install -y latexdiff` or `sudo tlmgr install latexdiff`
-     - macOS: `brew install latexdiff` (or it ships with MacTeX)
-   - Confirm it is available before proceeding. `paper_diff.tex` cannot be generated without it.
-8. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
+7. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
 9. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
    - Claims that cannot be verified from the paper or `results/` alone.
    - Places where a citation is clearly needed but no matching reference exists in the repo.
@@ -191,10 +186,17 @@ LOOP FOREVER (until a stop condition triggers):
 
 Run the following to generate a change summary for the user:
 
-```bash
-latexdiff paper_original.tex paper.tex > paper_diff.tex
-echo "Diff written to paper_diff.tex — compile it to see highlighted changes (additions in blue, deletions in red)."
-```
+Read `paper_original.tex` and `paper.tex`, compare them, and write `paper_diff.tex` — a copy of the final paper with changes annotated using standard LaTeX markup:
+
+- **Added text**: wrap in `\textcolor{blue}{...}`
+- **Deleted text**: wrap in `\textcolor{red}{\sout{...}}`
+- Add these two lines to the preamble if not already present:
+  ```latex
+  \usepackage{xcolor}
+  \usepackage[normalem]{ulem}
+  ```
+
+Compare at the sentence or paragraph level — not character by character. Focus on meaningful content changes; ignore pure whitespace or formatting differences. No external tools needed; you produce `paper_diff.tex` directly by reading both files and writing the annotated output.
 
 Then print a plain-text run summary:
 - Final `review_score` and baseline score (gain)
@@ -203,4 +205,4 @@ Then print a plain-text run summary:
 - Which dimensions improved the most
 - Any open questions noted in `.autopaper/working_memory.md`
 
-`paper_diff.tex` is a standard LaTeX file — the user can compile it with their existing LaTeX environment (Overleaf, pdflatex, etc.) to see additions highlighted in blue and deletions in red. No PDF compilation is done by the agent.
+The user can compile `paper_diff.tex` with their existing LaTeX environment (Overleaf, pdflatex, etc.) to review all changes. No PDF compilation is done by the agent.
