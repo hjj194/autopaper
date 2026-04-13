@@ -41,15 +41,20 @@ To set up a new experiment, work with the user to:
    - Open questions for the human:
    - Reference constraints:
    ```
-7. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
-8. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
+7. **Check latexdiff**: Run `command -v latexdiff` to check if it is available.
+   - If missing, install it before continuing:
+     - Linux (TeX Live): `sudo apt-get install -y latexdiff` or `sudo tlmgr install latexdiff`
+     - macOS: `brew install latexdiff` (or it ships with MacTeX)
+   - Confirm it is available before proceeding. `paper_diff.tex` cannot be generated without it.
+8. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
+9. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
    - Claims that cannot be verified from the paper or `results/` alone.
    - Places where a citation is clearly needed but no matching reference exists in the repo.
    - Missing or inconsistent numbers, tables, or experimental details.
    - Unclear goals — is this a methods paper, an empirical study, a position paper?
    Present all findings to the user and resolve them before proceeding. If there are none, say so.
-9. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
-10. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
+10. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
+11. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
 
 Once you get confirmation, kick off the experimentation. **Do not ask the human anything during the loop.** All ambiguities should have been resolved in step 7.
 
@@ -187,13 +192,8 @@ LOOP FOREVER (until a stop condition triggers):
 Run the following to generate a change summary for the user:
 
 ```bash
-# Generate a diff .tex showing all changes vs the original
-if command -v latexdiff &> /dev/null; then
-    latexdiff paper_original.tex paper.tex > paper_diff.tex
-    echo "Diff written to paper_diff.tex — compile it to see highlighted changes."
-else
-    echo "latexdiff not found — skipping diff generation. Install via your TeX distribution to enable this."
-fi
+latexdiff paper_original.tex paper.tex > paper_diff.tex
+echo "Diff written to paper_diff.tex — compile it to see highlighted changes (additions in blue, deletions in red)."
 ```
 
 Then print a plain-text run summary:
