@@ -41,10 +41,16 @@ To set up a new experiment, work with the user to:
    - Reference constraints:
    ```
 6. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
-7. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
-8. **Confirm and go**: Confirm setup looks good.
+7. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
+   - Claims that cannot be verified from the paper or `results/` alone.
+   - Places where a citation is clearly needed but no matching reference exists in the repo.
+   - Missing or inconsistent numbers, tables, or experimental details.
+   - Unclear goals — is this a methods paper, an empirical study, a position paper?
+   Present all findings to the user and resolve them before proceeding. If there are none, say so.
+8. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
+9. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
 
-Once you get confirmation, kick off the experimentation.
+Once you get confirmation, kick off the experimentation. **Do not ask the human anything during the loop.** All ambiguities should have been resolved in step 7.
 
 ## Experimentation
 
@@ -71,8 +77,8 @@ Once you get confirmation, kick off the experimentation.
 - Keep `.autopaper/working_memory.md` short. It should store only the current best hypothesis, failed ideas to avoid, factual caveats, and open questions.
 
 **Human alignment**:
-- Do not ask the human whether to continue after every round.
-- Do ask the human when goals, factual claims, experiment details, missing numbers, or citation needs are ambiguous enough that guessing would be risky.
+- Do not ask the human anything during the loop. All ambiguities should have been resolved during setup (step 7).
+- If you encounter an unexpected ambiguity mid-loop (e.g., a dimension improvement requires a claim you can't verify), skip that edit direction, note it in `.autopaper/working_memory.md` under "Open questions for the human", and try a different approach for that round instead.
 
 **First-principles priority**:
 - Work from the argument up. First clarify the problem, the claimed contribution, the evidence supporting it, and the weakest logical link.
@@ -82,7 +88,7 @@ Once you get confirmation, kick off the experimentation.
 - Treat bibliography facts as conservative input.
 - Do not invent new papers, authors, titles, years, venues, URLs, DOIs, or bib entries.
 - Reuse existing verified references from the repo when possible.
-- If the paper clearly needs a citation that is not already present in the repo, stop and ask the human.
+- If the paper clearly needs a citation that is not already present in the repo, skip that edit direction and note it in `.autopaper/working_memory.md`. Do not stop the loop to ask.
 
 ## Output format
 
@@ -144,7 +150,7 @@ d4e5f6g	6.890	0.85	keep	novelty	add explicit comparison to prior work in intro
 
 The experiment runs on a dedicated branch (e.g. `autopaper/apr10`).
 
-**Do not pause to ask the human if you should continue on routine rounds.** The human might be asleep. Before the first scored run, make sure the reviewer preflight passes. If the reviewer API fails, try to fix it and retry. If you get 3 consecutive crashes, check `reviewer.py` configuration and environment variables. If goals or facts are genuinely ambiguous, stop and ask the human instead of guessing.
+**The loop is fully autonomous — do not ask the human anything.** All ambiguities were resolved during setup. If the reviewer API fails, try to fix it and retry. If you get 3 consecutive crashes, check `autopaper.toml` configuration and environment variables, then stop the loop and report the issue.
 
 The loop stops automatically when either stopping condition is met (see Configuration above), or when the human interrupts manually.
 
@@ -152,7 +158,7 @@ LOOP FOREVER (until a stop condition triggers):
 
 1. Read `review.log`, extract weakest dimension: `grep "^weakest_dim:" review.log`
 2. Read `.autopaper/working_memory.md` and update your current hypothesis for the next round.
-3. If the next edit depends on ambiguous goals, unverifiable facts, missing experiment details, or missing citations, stop and ask the human before proceeding.
+3. If the next edit would depend on ambiguous facts or missing citations, skip that direction and try a different approach. Note the skipped direction in `.autopaper/working_memory.md`.
 4. Edit `paper.tex` to improve the weakest dimension. If `results/results.md` or `results/raw/` exist, consult them to verify specific numbers; otherwise rely on what is already in `paper.tex`.
 5. Update `.autopaper/working_memory.md` with the current plan, failed ideas to avoid, and any open questions.
 6. `git commit` — one commit per round only, so that `HEAD~1` revert is precise.
