@@ -183,9 +183,48 @@ LOOP FOREVER (until a stop condition triggers):
 
 ## When the loop stops
 
-Print a plain-text run summary:
+Write `changes.md` — a structured change summary organized by paper section. For each section that was modified, describe:
+- What was changed and why (which dimension it targeted)
+- Which round(s) made the change
+- Whether it was a keep or part of a chain of revisions
+
+Example structure:
+```markdown
+# Change Summary
+
+Baseline: 5.870 → Final: 7.850 (+1.980)
+Rounds: 15 total, 11 kept, 4 discarded
+Cost: $12.96
+
+## Abstract
+- Rewrote to quantify contributions instead of vague claims (Round 1, clarity)
+- Shortened from 280 to 190 words while preserving key results (Round 9, clarity)
+
+## Introduction
+- Added explicit novelty statement distinguishing from prior work (Round 4, novelty)
+- Restructured contributions list with quantitative claims (Round 1, clarity)
+
+## Method
+- Added formal problem statement with notation table (Round 7, soundness)
+- Split into subsections with transition sentences (Round 2, clarity)
+
+## Experiments
+- Tightened analysis to lead with key finding per table (Round 8, clarity)
+- Added ablation study discussion (Round 11, novelty)
+
+## Conclusion
+- Clarified practical implications (Round 12, significance)
+
+## Not changed
+- Related Work: attempted rewrite in Round 6 but reverted (regression)
+- Bibliography: no references added or removed
+
+## Open questions
+- (any items from working_memory.md that were skipped during the loop)
+```
+
+Then print a short terminal summary:
 - Final `review_score` and baseline score (gain)
-- Total rounds run, total cost
-- Number of keep vs discard rounds
-- Which dimensions improved the most
-- Any open questions noted in `.autopaper/working_memory.md`
+- Total rounds, total cost
+- Pointer to `changes.md` for the full breakdown
+- Pointer to `git diff <baseline_commit>..HEAD` for exact tex changes
