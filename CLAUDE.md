@@ -8,6 +8,8 @@ Read `program.md` for the full operational protocol. That is the primary instruc
 - `reviewer.py` — fixed evaluation harness. DO NOT MODIFY.
 - `autopaper.toml` — reviewer and model configuration.
 - `paper.tex` — the paper being optimized. This is what you edit.
+- `paper_original.tex` — snapshot of the paper before optimization. Do not modify.
+- `paper_diff.tex` — generated at the end of the run; shows all changes vs original.
 - `results.tsv` — tab-separated scoring history (one row per round).
 - `.autopaper/working_memory.md` — lightweight run state.
 

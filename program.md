@@ -25,11 +25,12 @@ To set up a new experiment, work with the user to:
    - `.autopaper/working_memory.md` — lightweight run memory. Read it if present; create it if missing.
    - `results/results.md` — (optional) human-written experiment summary. Only present when writing a paper from scratch or when the human wants to provide extra context.
    - `results/raw/` — (optional) raw experimental data (CSV, figures, logs). Only consult if present and you need to verify specific numbers not already in `paper.tex`.
-4. **Initialize results.tsv**: Create `results.tsv` with just the header row:
+4. **Save the original paper**: `cp paper.tex paper_original.tex` — this snapshot is used to generate a diff at the end. Do not modify `paper_original.tex` at any point during the run.
+5. **Initialize results.tsv**: Create `results.tsv` with just the header row:
    ```
    commit	review_score	cost_usd	status	weakest_dim	description
    ```
-5. **Initialize working memory**: Ensure `.autopaper/working_memory.md` exists with a short running summary:
+6. **Initialize working memory**: Ensure `.autopaper/working_memory.md` exists with a short running summary:
    ```
    # Working Memory
    - Current goal:
@@ -40,15 +41,15 @@ To set up a new experiment, work with the user to:
    - Open questions for the human:
    - Reference constraints:
    ```
-6. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
-7. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
+7. **Run connectivity preflight**: `$PYTHON_CMD reviewer.py --dry-run` and confirm reviewer APIs are reachable before scoring anything.
+8. **Audit the paper for ambiguities**: Before starting the loop, scan `paper.tex` for anything that would require human input mid-loop. Surface all issues now so the loop can run fully autonomously. Check for:
    - Claims that cannot be verified from the paper or `results/` alone.
    - Places where a citation is clearly needed but no matching reference exists in the repo.
    - Missing or inconsistent numbers, tables, or experimental details.
    - Unclear goals — is this a methods paper, an empirical study, a position paper?
    Present all findings to the user and resolve them before proceeding. If there are none, say so.
-8. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
-9. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
+9. **Run baseline**: `$PYTHON_CMD reviewer.py > review.log 2>&1` to establish the first scored baseline.
+10. **Confirm and go**: Present the baseline score and confirm the user is ready. This is the last human checkpoint — once confirmed, the loop runs fully autonomously until a stop condition triggers.
 
 Once you get confirmation, kick off the experimentation. **Do not ask the human anything during the loop.** All ambiguities should have been resolved in step 7.
 
@@ -177,6 +178,29 @@ LOOP FOREVER (until a stop condition triggers):
       e. Do **not** re-confirm if the second run also lands in the gray zone — use the averaged score as final.
       f. A confirmation round counts as part of the same round, not a separate round for convergence tracking.
 13. **Check stop conditions** (evaluate after each round):
-    - If `TARGET_SCORE > 0` and `review_score >= TARGET_SCORE` → stop, report final score
-    - If `CONVERGENCE_ROUNDS > 0` and the last N rounds all had improvement < 0.05 → stop, report convergence
+    - If `TARGET_SCORE > 0` and `review_score >= TARGET_SCORE` → stop
+    - If `CONVERGENCE_ROUNDS > 0` and the last N rounds all had improvement < 0.05 → stop
     - Otherwise continue
+
+## When the loop stops
+
+Run the following to generate a change summary for the user:
+
+```bash
+# Generate a diff .tex showing all changes vs the original
+if command -v latexdiff &> /dev/null; then
+    latexdiff paper_original.tex paper.tex > paper_diff.tex
+    echo "Diff written to paper_diff.tex — compile it to see highlighted changes."
+else
+    echo "latexdiff not found — skipping diff generation. Install via your TeX distribution to enable this."
+fi
+```
+
+Then print a plain-text run summary:
+- Final `review_score` and baseline score (gain)
+- Total rounds run, total cost
+- Number of keep vs discard rounds
+- Which dimensions improved the most
+- Any open questions noted in `.autopaper/working_memory.md`
+
+`paper_diff.tex` is a standard LaTeX file — the user can compile it with their existing LaTeX environment (Overleaf, pdflatex, etc.) to see additions highlighted in blue and deletions in red. No PDF compilation is done by the agent.
