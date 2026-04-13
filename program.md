@@ -198,6 +198,13 @@ Read `paper_original.tex` and `paper.tex`, compare them, and write `paper_diff.t
 
 Compare at the sentence or paragraph level — not character by character. Focus on meaningful content changes; ignore pure whitespace or formatting differences. No external tools needed; you produce `paper_diff.tex` directly by reading both files and writing the annotated output.
 
+**Compilation hygiene** — follow these rules to avoid LaTeX errors:
+- Never wrap a block that spans a paragraph break (`\n\n`) inside a single `\textcolor{}` or `\sout{}`. Split at paragraph boundaries and annotate each paragraph separately.
+- Never wrap a LaTeX environment (`\begin{...}...\end{...}`, equations, tables, figures, lists) inside a text annotation command. Instead, add a short comment above it, e.g. `% [ADDED]` or `% [REMOVED]`.
+- Keep `\sout{}` content short (one sentence max). For longer deleted blocks, use a `% [DELETED: ...]` comment instead.
+- Do not annotate changes inside `\title{}`, `\author{}`, or other preamble commands — note them in a comment at the top of the file instead.
+- After writing `paper_diff.tex`, mentally scan for any annotation that crosses a blank line or wraps an environment, and fix it before finishing.
+
 Then print a plain-text run summary:
 - Final `review_score` and baseline score (gain)
 - Total rounds run, total cost
