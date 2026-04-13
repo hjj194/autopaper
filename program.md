@@ -202,8 +202,8 @@ Then annotate at three levels:
 \replaced{new text}{old text}
 ```
 
-**Level 2 — environment-level changes** (equations, tables, figures, itemize blocks):
-Never wrap `\begin{}`/`\end{}` inside any annotation command — LaTeX forbids it. Instead, bracket the environment with comment markers:
+**Level 2 — environment-level or large block changes** (equations, tables, figures, lists, or any deleted block longer than 3 lines):
+Never wrap `\begin{}`/`\end{}` inside any annotation command — LaTeX forbids it. Also never use `\deleted{}` for blocks longer than 3 lines regardless of content. Use comment markers instead:
 ```latex
 % [ADDED BEGIN]
 \begin{equation}
@@ -217,6 +217,8 @@ Never wrap `\begin{}`/`\end{}` inside any annotation command — LaTeX forbids i
 \end{equation}
 % [DELETED END]
 ```
+
+When in doubt, use comment markers. A comment marker never causes a compilation error; a misused `\deleted{}` always does.
 
 **Level 3 — structural changes** (paragraphs reordered, sections moved, major rewrites):
 Do not attempt to annotate these inline. Describe them in the plain-text run summary instead.

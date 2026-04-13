@@ -9,8 +9,18 @@ import sys
 
 DIFF_PATH = "paper_diff.tex"
 
-# Annotation commands from the `changes` package
+# Allowed annotation commands (changes package)
 ANNOTATION_CMDS = (r"\added{", r"\deleted{", r"\replaced{")
+
+# Forbidden patterns — old approach, always wrong
+FORBIDDEN_PATTERNS = [
+    (r"\\textcolor\{red\}\{\\sout\{", "\\textcolor{red}{\\sout{...}} — use \\deleted{} or comment markers instead"),
+    (r"\\textcolor\{blue\}\{",        "\\textcolor{blue}{...} — use \\added{} instead"),
+    (r"\\sout\{",                     "bare \\sout{} — use \\deleted{} or comment markers instead"),
+]
+
+# Deleted block line limit before comment markers are required
+DELETED_LINE_LIMIT = 3
 
 
 def find_annotation_spans(text: str) -> list[tuple[int, int, str]]:
@@ -22,8 +32,7 @@ def find_annotation_spans(text: str) -> list[tuple[int, int, str]]:
             idx = text.find(cmd, pos)
             if idx == -1:
                 break
-            # find the matching closing brace for the first argument
-            open_at = idx + len(cmd) - 1  # position of opening '{'
+            open_at = idx + len(cmd) - 1
             depth = 0
             end = open_at
             while end < len(text):
@@ -48,42 +57,62 @@ def check(path: str) -> list[str]:
         text = f.read()
 
     issues = []
+
+    # --- Forbidden pattern check ---
+    for pattern, message in FORBIDDEN_PATTERNS:
+        for m in re.finditer(pattern, text):
+            line = char_to_line(text, m.start())
+            issues.append(f"Line {line}: Forbidden annotation — {message}")
+
+    # --- Annotation span checks ---
     spans = find_annotation_spans(text)
 
     for start, end, cmd in spans:
         block = text[start : end + 1]
         line = char_to_line(text, start)
 
-        # 1. Annotation wraps a LaTeX environment
+        # 1. Wraps a LaTeX environment
         if re.search(r"\\begin\s*\{|\\end\s*\{", block):
             issues.append(
                 f"Line {line}: `{cmd}` wraps a \\begin{{}} or \\end{{}} environment. "
-                "Use % [ADDED BEGIN] / % [ADDED END] comment markers instead."
+                "Use comment markers instead:\n"
+                "    % [DELETED BEGIN]\n"
+                "    ...equation or environment...\n"
+                "    % [DELETED END]"
             )
 
-        # 2. Annotation crosses a paragraph break
+        # 2. Crosses a paragraph break
         if "\n\n" in block:
             issues.append(
-                f"Line {line}: `{cmd}` spans a paragraph break (blank line). "
+                f"Line {line}: `{cmd}` spans a paragraph break. "
                 "Split into separate annotations per paragraph."
             )
 
-        # 3. Nested annotation commands
-        inner = block[len(cmd) + 1 :]  # content inside the first {
+        # 3. Deleted block exceeds line limit
+        if cmd == r"\deleted" and block.count("\n") > DELETED_LINE_LIMIT:
+            issues.append(
+                f"Line {line}: `\\deleted` block is {block.count(chr(10))} lines "
+                f"(limit {DELETED_LINE_LIMIT}). "
+                "Use comment markers for large deleted sections."
+            )
+
+        # 4. Nested annotation commands
+        inner = block[len(cmd) + 1:]
         for other_cmd in ANNOTATION_CMDS:
             if other_cmd in inner:
                 issues.append(
-                    f"Line {line}: `{cmd}` contains nested annotation `{other_cmd.rstrip('{')}`. "
+                    f"Line {line}: `{cmd}` contains nested `{other_cmd.rstrip('{')}`. "
                     "Flatten nested annotations."
                 )
                 break
 
-    # 4. Check that the changes package is loaded
-    if r"\usepackage" in text and "changes" not in text:
-        issues.append(
-            "Missing `\\usepackage[final]{changes}` in preamble — "
-            "required for \\added, \\deleted, \\replaced commands."
-        )
+    # --- Preamble check ---
+    if any(cmd in text for cmd in ANNOTATION_CMDS):
+        if "changes" not in text:
+            issues.append(
+                "Missing \\usepackage[final]{changes} in preamble — "
+                "required for \\added, \\deleted, \\replaced commands."
+            )
 
     return issues
 
